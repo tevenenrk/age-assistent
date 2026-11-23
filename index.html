@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asystent Seniora – wersja testowa</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Asystent Seniora</h1>
+      <span class="sub">wersja testowa na PC</span>
+    </div>
+    <div class="chips">
+      <span id="chipMode" class="chip">Stan: czuwanie</span>
+      <span id="chipAi" class="chip">AI: demo</span>
+      <span id="chipCalls" class="chip">Zapytania AI dziś: 0</span>
+    </div>
+  </header>
+
+  <div id="demoBanner" class="banner" hidden>
+    Brak klucza API – działa <strong>tryb demo</strong> (odpowiedzi AI są udawane).
+    Klucz Gemini wpiszesz w zakładce <em>Ustawienia</em>.
+  </div>
+
+  <main class="layout">
+    <!-- LEWA KOLUMNA: lampka i symulacja czujników -->
+    <section class="panel sim">
+      <div class="lamp-wrap">
+        <div id="lamp" class="lamp" data-state="off" aria-hidden="true"></div>
+        <div id="lampLabel" class="lamp-label">Nie słucham</div>
+        <div id="interim" class="interim"></div>
+      </div>
+
+      <h2>Symulacja czujników</h2>
+      <div class="btn-grid">
+        <button id="btnMotion" class="big">🚶 Ruch (kamera)</button>
+        <button id="btnSound" class="big">🔊 Dźwięki domowe</button>
+        <button id="btnRandom" class="big">🎲 Losowy event</button>
+        <button id="btnTalk" class="big">🎙️ Senior zaczyna mówić</button>
+      </div>
+      <button id="btnStop" class="danger wide">■ Przerwij wszystko <kbd>Esc</kbd></button>
+
+      <h2>Wypowiedź seniora tekstem</h2>
+      <form id="sayForm" class="say">
+        <input id="sayInput" placeholder="Wpisz, co mówi senior…" autocomplete="off">
+        <button type="submit">Powiedz</button>
+      </form>
+      <p class="hint">Działa zamiast mikrofonu albo razem z nim. Hasło <b id="hintLive">„pogadajmy szybko”</b> włącza tryb LIVE, <b id="hintEnd">„koniec rozmowy”</b> kończy rozmowę.</p>
+
+      <label class="toggle"><input type="checkbox" data-setting="useMic" id="optMic"> Mikrofon (rozpoznawanie mowy)</label>
+      <label class="toggle"><input type="checkbox" data-setting="tts"> Czytaj na głos</label>
+      <label class="toggle"><input type="checkbox" data-setting="testSeconds"> Tryb testowy: ponowienia w sekundach zamiast minut</label>
+    </section>
+
+    <!-- ŚRODEK: rozmowa -->
+    <section class="panel chat">
+      <div class="panel-head">
+        <h2>Rozmowa</h2>
+        <button id="btnClearChat" class="ghost small">Wyczyść</button>
+      </div>
+      <div id="chat" class="chatlog" aria-live="polite"></div>
+    </section>
+
+    <!-- PRAWA KOLUMNA: zakładki -->
+    <section class="panel side">
+      <nav class="tabs">
+        <button data-tab="rem" class="active">Przypomnienia</button>
+        <button data-tab="set">Ustawienia</button>
+        <button data-tab="log">Dziennik <span id="notifCount" class="count" hidden>0</span></button>
+      </nav>
+
+      <!-- PRZYPOMNIENIA -->
+      <div id="tab-rem" class="tab active">
+        <div id="remList" class="rem-list"></div>
+
+        <details class="add-rem">
+          <summary>➕ Dodaj przypomnienie</summary>
+          <form id="remForm">
+            <label>Nazwa <input name="title" required placeholder="np. Leki wieczorne"></label>
+            <label>Godzina <input name="time" type="time" required value="20:00"></label>
+            <label>Co powiedzieć <small>({imie} zamieni się na formę zwracania się)</small>
+              <textarea name="text" rows="3" required>{imie}, czas na wieczorne leki. Wzięłaś już?</textarea>
+            </label>
+            <div class="row">
+              <label>Ponawiaj co (min) <input name="retryMin" type="number" min="1" value="15"></label>
+              <label>Maks. prób <input name="maxAttempts" type="number" min="1" value="4"></label>
+            </div>
+            <label class="toggle"><input name="requirePresence" type="checkbox" checked> Przypomnij dopiero po wykryciu ruchu lub dźwięku</label>
+            <button type="submit">Dodaj</button>
+          </form>
+        </details>
+      </div>
+
+      <!-- USTAWIENIA -->
+      <div id="tab-set" class="tab">
+        <fieldset>
+          <legend>Połączenie z AI (Gemini)</legend>
+          <label>Klucz API <small>(z Google AI Studio; zapisywany tylko w tej przeglądarce)</small>
+            <input type="password" data-setting="apiKey" placeholder="AIza…" autocomplete="off">
+          </label>
+          <label>Model do zwykłej rozmowy
+            <input data-setting="textModel" list="textModels">
+            <datalist id="textModels"></datalist>
+          </label>
+          <label>Model do trybu LIVE
+            <input data-setting="liveModel" list="liveModels">
+            <datalist id="liveModels"></datalist>
+          </label>
+          <label>Głos w trybie LIVE
+            <input data-setting="liveVoice" list="liveVoices">
+            <datalist id="liveVoices">
+              <option value="Kore"><option value="Aoede"><option value="Leda"><option value="Zephyr"><option value="Puck"><option value="Charon"><option value="Fenrir"><option value="Orus">
+            </datalist>
+          </label>
+          <button type="button" id="btnModels" class="ghost">Pobierz listę dostępnych modeli</button>
+          <label class="toggle"><input type="checkbox" data-setting="halfDuplex"> LIVE bez słuchawek (wycisz mikrofon, gdy asystent mówi)</label>
+          <label>Maks. długość rozmowy LIVE (min) <input type="number" min="1" data-setting="liveMaxMin"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Osoba i asystent</legend>
+          <label>Imię asystenta <input data-setting="assistantName"></label>
+          <label>Jak zwracać się do seniora <input data-setting="seniorAddress"></label>
+          <label>Informacje o osobie <small>(rodzina, leki, zwyczaje, adres…)</small>
+            <textarea data-setting="profile" rows="7"></textarea>
+          </label>
+          <label>Opiekun <input data-setting="caregiver"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Zagadywanie bez AI</legend>
+          <label>Powitania po wykryciu ruchu <small>(jedno na linię)</small>
+            <textarea data-setting="greetings" rows="4"></textarea>
+          </label>
+          <label>Tematy losowego eventu, gdy brak AI <small>(jedno na linię)</small>
+            <textarea data-setting="randomTopics" rows="4"></textarea>
+          </label>
+          <label>Min. przerwa między zagadaniami po ruchu (min) <input type="number" min="0" data-setting="greetCooldownMin"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Mowa</legend>
+          <label>Głos lektora (czytanie na głos)
+            <select data-setting="voiceURI" id="voiceSelect"><option value="">(automatycznie – polski)</option></select>
+          </label>
+          <label>Tempo mowy <input type="number" step="0.05" min="0.5" max="1.5" data-setting="ttsRate"></label>
+          <button type="button" id="btnTestVoice" class="ghost">▶ Test głosu</button>
+          <label>Czekanie na odpowiedź po zagadaniu (s) <input type="number" min="3" data-setting="listenSec"></label>
+          <label>Czekanie na odpowiedź w rozmowie (s) <input type="number" min="3" data-setting="convListenSec"></label>
+          <label>Hasło trybu LIVE <input data-setting="liveKeyword"></label>
+          <label>Hasło końca rozmowy <input data-setting="endKeyword"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Kamera i opiekun</legend>
+          <label class="toggle"><input type="checkbox" data-setting="cameraAllowed"> Pozwól AI robić zdjęcia kamerą (na żądanie)</label>
+          <button type="button" id="btnTestCam" class="ghost">📷 Test kamery</button>
+          <label>Telegram – token bota <small>(opcjonalnie)</small> <input type="password" data-setting="telegramToken" autocomplete="off"></label>
+          <label>Telegram – chat ID <input data-setting="telegramChat"></label>
+        </fieldset>
+
+        <button type="button" id="btnReset" class="danger small">Przywróć ustawienia domyślne</button>
+      </div>
+
+      <!-- DZIENNIK -->
+      <div id="tab-log" class="tab">
+        <h3>Powiadomienia do opiekuna</h3>
+        <ul id="notifList" class="notif-list"><li class="empty">Brak powiadomień.</li></ul>
+        <h3>Zdarzenia</h3>
+        <ul id="eventLog" class="event-log"></ul>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/speech.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/gemini.js"></script>
+  <script src="js/live.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
